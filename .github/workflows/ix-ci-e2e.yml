@@ -3,15 +3,44 @@ name: ix CI e2e
 on:
   push:
   workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_run:
+    workflows: ['**']
+    types: [requested]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ix-runners
+  cancel-in-progress: false
 
 jobs:
+  reconcile:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.name != 'ix CI e2e' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: indexable-inc/ix-runners@12bcae3bbcc7f53837ee3ef6db9853632a291398
+        with:
+          ix-token: ${{ secrets.IX_TOKEN }}
+          runner-pat: ${{ secrets.RUNNER_PAT }}
+          pool: baml
+
   runner-1:
-    runs-on: ix
+    needs: reconcile
+    runs-on: [self-hosted, ix]
     steps:
       - name: Inspect ix runner
         run: uname -a; nproc; df -h; echo ok
   runner-2:
-    runs-on: ix
+    needs: reconcile
+    runs-on: [self-hosted, ix]
     steps:
       - name: Inspect ix runner
         run: uname -a; nproc; df -h; echo ok
