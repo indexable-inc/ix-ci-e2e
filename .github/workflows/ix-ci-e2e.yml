@@ -1,0 +1,17 @@
+name: ix CI e2e
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  runner-1:
+    runs-on: ix
+    steps:
+      - name: Inspect ix runner
+        run: uname -a; nproc; df -h; echo ok
+  runner-2:
+    runs-on: ix
+    steps:
+      - name: Inspect ix runner
+        run: uname -a; nproc; df -h; echo ok
