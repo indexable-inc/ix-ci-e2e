@@ -26,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: indexable-inc/ix-runners@adf7d04e0c9c35417eed7d95f11d09f0cfc7bded
+      - uses: indexable-inc/ix-runners@3210e962ac5134fb0d4fd72988d6626abaf1c39d
         with:
           ix-token: ${{ secrets.IX_TOKEN }}
           runner-pat: ${{ secrets.RUNNER_PAT }}
