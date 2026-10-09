@@ -1,55 +1,60 @@
 name: ix CI e2e
 
+# The runners are owned by the ix-hosted webhook control plane (the ix-runners
+# GitHub App delivers workflow_job events to ix-server, ix-runner-control
+# boots one machine per queued job). This repository carries NO reconcile
+# job, no IX_TOKEN and no RUNNER_PAT: a second owner of the pool (the
+# ix-runners action) double-spawns against it. Where the VMs land is decided
+# by the control plane (the pool row's regions and its ix endpoint), not by
+# this workflow, so IX_SERVER and IX_REGION cannot retarget it; they are
+# printed as the expectation and the job fails if the runner disagrees.
+
 on:
   push:
-  workflow_dispatch:
   schedule:
     - cron: '*/30 * * * *'
-  workflow_run:
-    workflows: ['**']
-    types: [requested]
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: 'Runner architecture label, x86_64 or arm64. Empty: repository variable IX_RUNNER_ARCH, else no arch label (x86_64). Graviton-only regions need arm64.'
+        type: string
+        default: ''
+      expect_region:
+        description: 'Region the runner VM is expected in (informational, e.g. us-west-2). Empty: repository variable IX_REGION.'
+        type: string
+        default: ''
 
 permissions:
   contents: read
-  actions: read
 
-# Single-flight is on the reconcile JOB, not the workflow. A workflow-level
-# group deadlocked (2026-10-08, run 37818531237): the runner jobs wait for a
-# runner the reconcile creates, so a run holds the group while they queue,
-# every later reconcile sat in the group's one pending slot, and each new
-# trigger cancelled the pending one. Only the reconcile mutates the fleet.
+env:
+  EXPECT_REGION: ${{ inputs.expect_region || vars.IX_REGION }}
+  EXPECT_SERVER: ${{ vars.IX_SERVER }}
+  EXPECT_ARCH: ${{ inputs.arch || vars.IX_RUNNER_ARCH }}
+
 jobs:
-  reconcile:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.name != 'ix CI e2e' }}
-    runs-on: ubuntu-latest
-    concurrency:
-      group: ix-runners
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: indexable-inc/ix-runners@603666aff7b304e480918863a1ae504897e247bd
-        with:
-          ix-token: ${{ secrets.IX_TOKEN }}
-          runner-pat: ${{ secrets.RUNNER_PAT }}
-          pool: baml
-
-  # No `needs: reconcile`: the reconcile spawns one machine per QUEUED
-  # `[self-hosted, ix]` job, so these must be queued when it reads the queue.
-  # Gated behind it they were not, and it saw "0 demanded job(s)".
   runner-1:
-    if: ${{ github.event_name != 'workflow_run' }}
-    runs-on: [self-hosted, ix]
+    runs-on: ${{ fromJSON((inputs.arch || vars.IX_RUNNER_ARCH) == 'arm64' && '["self-hosted","ix","arm64"]' || '["self-hosted","ix"]') }}
     timeout-minutes: 10
     steps:
       - name: Inspect ix runner
-        run: uname -a; nproc; df -h; echo ok
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -a; nproc; df -h
+          echo "expected server: ${EXPECT_SERVER:-default} region: ${EXPECT_REGION:-unset}"
+          case "${EXPECT_ARCH:-}" in
+            arm64) test "$(uname -m)" = aarch64 ;;
+            x86_64) test "$(uname -m)" = x86_64 ;;
+          esac
+          echo ok
   runner-2:
-    if: ${{ github.event_name != 'workflow_run' }}
-    runs-on: [self-hosted, ix]
+    runs-on: ${{ fromJSON((inputs.arch || vars.IX_RUNNER_ARCH) == 'arm64' && '["self-hosted","ix","arm64"]' || '["self-hosted","ix"]') }}
     timeout-minutes: 10
     steps:
       - name: Inspect ix runner
-        run: uname -a; nproc; df -h; echo ok
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -a; nproc; df -h
+          echo ok
