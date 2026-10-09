@@ -13,14 +13,18 @@ permissions:
   contents: read
   actions: read
 
-concurrency:
-  group: ix-runners
-  cancel-in-progress: false
-
+# Single-flight is on the reconcile JOB, not the workflow. A workflow-level
+# group deadlocked (2026-10-08, run 37818531237): the runner jobs wait for a
+# runner the reconcile creates, so a run holds the group while they queue,
+# every later reconcile sat in the group's one pending slot, and each new
+# trigger cancelled the pending one. Only the reconcile mutates the fleet.
 jobs:
   reconcile:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.name != 'ix CI e2e' }}
     runs-on: ubuntu-latest
+    concurrency:
+      group: ix-runners
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -32,15 +36,20 @@ jobs:
           runner-pat: ${{ secrets.RUNNER_PAT }}
           pool: baml
 
+  # No `needs: reconcile`: the reconcile spawns one machine per QUEUED
+  # `[self-hosted, ix]` job, so these must be queued when it reads the queue.
+  # Gated behind it they were not, and it saw "0 demanded job(s)".
   runner-1:
-    needs: reconcile
+    if: ${{ github.event_name != 'workflow_run' }}
     runs-on: [self-hosted, ix]
+    timeout-minutes: 10
     steps:
       - name: Inspect ix runner
         run: uname -a; nproc; df -h; echo ok
   runner-2:
-    needs: reconcile
+    if: ${{ github.event_name != 'workflow_run' }}
     runs-on: [self-hosted, ix]
+    timeout-minutes: 10
     steps:
       - name: Inspect ix runner
         run: uname -a; nproc; df -h; echo ok
