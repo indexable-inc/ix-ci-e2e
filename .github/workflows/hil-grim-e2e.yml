@@ -1,6 +1,8 @@
 name: HIL Grim E2E
 
 on:
+  push:
+    branches: [hil-grim-e2e-20261015]
   workflow_dispatch:
 
 permissions:
