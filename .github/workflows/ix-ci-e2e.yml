@@ -41,7 +41,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          uname -a; nproc; df -h
+          uname -a; nproc
+          # A seed-restored runner once served /proc/meminfo as ENOTCONN (ix#5259), which breaks JVM builds.
+          grep -m1 '^MemTotal:' /proc/meminfo || { echo 'ix runner: /proc/meminfo is unreadable (ix#5259)' >&2; exit 1; }
+          df -h
           echo "expected server: ${EXPECT_SERVER:-default} region: ${EXPECT_REGION:-unset}"
           case "${EXPECT_ARCH:-}" in
             arm64) test "$(uname -m)" = aarch64 ;;
@@ -56,5 +59,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          uname -a; nproc; df -h
+          uname -a; nproc
+          # A seed-restored runner once served /proc/meminfo as ENOTCONN (ix#5259), which breaks JVM builds.
+          grep -m1 '^MemTotal:' /proc/meminfo || { echo 'ix runner: /proc/meminfo is unreadable (ix#5259)' >&2; exit 1; }
+          df -h
           echo ok
